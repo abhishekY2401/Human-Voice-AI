@@ -1,9 +1,18 @@
 import streamlit as st
-from utils.audio import extract_audio_from_video_file
+from utils.audio import extract_audio_from_video_file, convert_text_to_speech
 from utils.transcription import transcribe_from_audio
 import openai
 import requests
 import json
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+# Replace with your actual key. if you don't have one, get from Azure or from Community https://curious.pm
+azure_openai_key = os.environ["AZURE_OPENAI_KEY"]
+azure_openai_endpoint = os.environ["AZURE_OPENAI_ENDPOINT"]
 
 
 def main():
@@ -37,10 +46,58 @@ def main():
         current_step += 1
         progress_bar.progress(current_step / total_steps)
 
-        status_text.write("transcribing audio to text")
+        status_text.write("transcribing audio to text..")
         audio_transcript = transcribe_from_audio(
             audio_file_path, "human-voice-audio")
         print(audio_transcript)
+        current_step += 1
+        progress_bar.progress(current_step / total_steps)
+
+        status_text.write("correcting grammars and noises in human voice..")
+        output_transcript = ""
+        # pass the transcript to openai gpt4o
+        try:
+            headers = {
+                "Content-Type": "application/json",
+                "api-key": azure_openai_key
+            }
+
+            message_content = f"""
+                Correct the mispronounced grammars, the human sounds like umms and hmms present inside the below given
+                transcription. Do not paraphrase or summarize the transcript
+                Transcript: {audio_transcript}
+            """
+
+            data = {
+                "messages": [{"role": "user", "content": message_content}]
+            }
+
+            response = requests.post(
+                azure_openai_endpoint, headers=headers, json=data)
+
+            if response.status_code == 200:
+                result = response.json()
+                output_transcript = (
+                    result["choices"][0]["message"]["content"].strip()
+                )
+                st.success(result["choices"][0]
+                           ["message"]["content"].strip())
+            else:
+                # Handle errors if the request was not successful
+                st.error(
+                    f"Failed to connect or retrieve response: {
+                        response.status_code} - {response.text}"
+                )
+        except Exception as e:
+            # Handle any exceptions that occur during the request
+            st.error(f"Failed to connect or retrieve response: {str(e)}")
+
+        current_step += 1
+        progress_bar.progress(current_step / total_steps)
+
+        status_text.write("converting text to speech..")
+        convert_text_to_speech(output_transcript)
+
         current_step += 1
         progress_bar.progress(current_step / total_steps)
 
