@@ -2,7 +2,7 @@
 
 import time
 from moviepy.editor import VideoFileClip, AudioFileClip
-from google.cloud import speech
+from google.cloud import texttospeech
 from google.api_core.exceptions import GoogleAPICallError
 from pydub import AudioSegment
 
@@ -55,3 +55,30 @@ def split_audio(audio_path, max_duration_per_chunk=30):
         audio_chunks.append(chunk)
 
     return audio_chunks
+
+
+def convert_text_to_speech(audio_transcription):
+
+    client = texttospeech.TextToSpeechClient()
+
+    # set the transcription to be synthesized
+    synthesis_input = texttospeech.SynthesisInput(text=audio_transcription)
+
+    # build voice configuration
+    voice = texttospeech.VoiceSelectionParams(
+        language_code='en-US', ssml_gender=texttospeech.SsmlVoiceGender.NEUTRAL
+    )
+
+    audio_config = texttospeech.AudioConfig(
+        audio_encoding=texttospeech.AudioEncoding.MP3
+    )
+
+    response = client.synthesize_speech(
+        input=synthesis_input, voice=voice, audio_config=audio_config
+    )
+
+    # create new audio file
+    with open("output_transcription.mp3", "wb") as out:
+        # write the response to audio file
+        out.write(response.audio_content)
+        print('Audio content written to file "output.mp3"')
