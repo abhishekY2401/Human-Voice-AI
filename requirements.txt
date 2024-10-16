@@ -1,0 +1,9 @@
+google-cloud-speech
+streamlit
+openai
+requests
+moviepy
+pydub
+google-cloud-texttospeech
+google-cloud-storage
+python-dotenv
