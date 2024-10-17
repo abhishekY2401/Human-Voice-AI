@@ -1,10 +1,18 @@
 # define utils for extraction and processing of voice
-
+import os
 import time
 from moviepy.editor import VideoFileClip, AudioFileClip
-from google.cloud import texttospeech
+import uuid
+from elevenlabs import VoiceSettings
+from elevenlabs.client import ElevenLabs
 from google.api_core.exceptions import GoogleAPICallError
 from pydub import AudioSegment
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+ELEVENLABS_API_KEY = os.getenv('ELEVENLABS_API_KEY')
 
 
 def extract_audio_from_video_file(video_path):
@@ -59,26 +67,49 @@ def split_audio(audio_path, max_duration_per_chunk=30):
 
 def convert_text_to_speech(audio_transcription):
 
-    client = texttospeech.TextToSpeechClient()
-
-    # set the transcription to be synthesized
-    synthesis_input = texttospeech.SynthesisInput(text=audio_transcription)
-
-    # build voice configuration
-    voice = texttospeech.VoiceSelectionParams(
-        language_code='en-US', ssml_gender=texttospeech.SsmlVoiceGender.NEUTRAL
+    client = ElevenLabs(
+        api_key=ELEVENLABS_API_KEY,
     )
 
-    audio_config = texttospeech.AudioConfig(
-        audio_encoding=texttospeech.AudioEncoding.MP3
+    # setup voice configuration
+    voice_config = VoiceSettings(
+        stability=0.0,
+        similarity_boost=1.0,
+        style=0.0,
+        use_speaker_boost=True
     )
 
-    response = client.synthesize_speech(
-        input=synthesis_input, voice=voice, audio_config=audio_config
+    response = client.text_to_speech.convert(
+        voice_id="pNInz6obpgDQGcFmaJgB",  # Adam pre-made voice
+        output_format="mp3_22050_32",
+        text=audio_transcription,
+        model_id="eleven_turbo_v2_5",  # use the turbo model for low latency
+        voice_settings=voice_config
     )
 
-    # create new audio file
-    with open("output_transcription.mp3", "wb") as out:
-        # write the response to audio file
-        out.write(response.audio_content)
-        print('Audio content written to file "output.mp3"')
+    audio_file = f"{uuid.uuid4()}.mp3"
+
+    with open(audio_file, "wb") as f:
+        for chunk in response:
+            if chunk:
+                f.write(chunk)
+
+    print(f"{audio_file}: A new audio file was saved successfully!")
+
+    # Return the path of the saved audio file
+    return audio_file
+
+
+def merge_audio_with_video(video_path, audio_path, output_path):
+
+    video_clip = VideoFileClip(video_path)
+
+    audio_clip = AudioFileClip(audio_path)
+
+    # set the new audio to new video
+    video_with_ai_audio = video_clip.set_audio(audio_clip)
+
+    video_with_ai_audio.write_videofile(
+        output_path, codec="libx264", audio_codec="aac")
+
+    print(f"Video with merged audio saved at: {output_path}")

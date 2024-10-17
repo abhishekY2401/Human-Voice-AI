@@ -1,5 +1,5 @@
 import streamlit as st
-from utils.audio import extract_audio_from_video_file, convert_text_to_speech
+from utils.audio import extract_audio_from_video_file, convert_text_to_speech, merge_audio_with_video
 from utils.transcription import transcribe_from_audio
 import openai
 import requests
@@ -96,7 +96,14 @@ def main():
         progress_bar.progress(current_step / total_steps)
 
         status_text.write("converting text to speech..")
-        convert_text_to_speech(output_transcript)
+        audio_url = convert_text_to_speech(output_transcript)
+
+        current_step += 1
+        progress_bar.progress(current_step / total_steps)
+
+        status_text.write("merging human voice with AI voice..")
+        output_video = "output_video.mp4"
+        merge_audio_with_video(video_temp_file, audio_url, output_video)
 
         current_step += 1
         progress_bar.progress(current_step / total_steps)
