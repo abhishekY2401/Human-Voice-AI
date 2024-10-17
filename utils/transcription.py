@@ -1,5 +1,6 @@
 import time
 import os
+import assemblyai
 from utils.google_cloud import upload_to_gcs
 from moviepy.editor import VideoFileClip, AudioFileClip
 from google.cloud import speech
@@ -9,56 +10,35 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-GCLOUD_PROJECT_ID = os.environ['GCLOUD_PROJECT']
+# GCLOUD_PROJECT_ID = os.environ['GCLOUD_PROJECT']
+assemblyai.settings.api_key = os.environ['ASSEMBLY_API_KEY']
 
-# transcribe the audio using google speech to text
+# transcribe the audio using assembly ai speech to text
 
 
 def transcribe_from_audio(audio_path, bucket_name):
-    client = speech.SpeechClient()
 
     transcriptions = []
-    # audio_chunks = split_audio(audio_path)
+
+    # initialize assemblyai transcriber
+    transcriber = assemblyai.Transcriber()
+
     audio_file = audio_path.split(".")[0]
 
-    gcs_uri = upload_to_gcs(bucket_name, audio_path, f"temp_{audio_file}.wav")
+    # setup the assemblyai config
+    config = assemblyai.TranscriptionConfig(speaker_labels=True)
 
-    # for i, chunk in enumerate(audio_chunks):
+    transcript = transcriber.transcribe(audio_path, config)
+    print(transcript.text)
 
-    #     # create a temp file chunk to read audio chunk content
-    #     temp_chunk_path = f"audios/temp_chunk_{i}.wav"
-    #     chunk.export(temp_chunk_path, format="wav")
+    for utterance in transcript.utterances:
+        print(f"{utterance.text}")
+        transcriptions.append(utterance.text)
 
-    #     with open(temp_chunk_path, "rb") as audio_file:
-    #         audio_content = audio_file.read()
+    if transcript.status == assemblyai.TranscriptStatus.error:
+        print(f"Transcription Failed: {transcript.error}")
+        return f"Transcription Failed: {transcript.error}"
 
-    audio_recognition = speech.RecognitionAudio(uri=gcs_uri)
+    transcriptions = "".join(transcriptions)
 
-    config = speech.RecognitionConfig(
-        enable_automatic_punctuation=True,
-        # encoding='LINEAR16',
-        language_code='en-US',
-        sample_rate_hertz=44100,
-        audio_channel_count=2,
-    )
-
-    # continue transcription in the background
-    operation = client.long_running_recognize(
-        config=config, audio=audio_recognition)
-
-    try:
-        # poll the operation until the transcription is finish running
-        response = operation.result(timeout=600)
-
-    except GoogleAPICallError as error:
-        print(f"An error occurred: {error}")
-
-    for result in response.results:
-        transcriptions.append(result.alternatives[0].transcript)
-
-    # os.remove(temp_chunk_path)
-
-    audio_transcript = "".join(transcriptions)
-    print(audio_transcript)
-
-    return audio_transcript
+    return transcriptions
